@@ -2,7 +2,7 @@
 
 Hardware-independent YDLIDAR X2 packet decoding and scan assembly for OREVA.
 This is the first software module in the repository. It validates the
-receive-side data path before any ROS 2 or mapping code is introduced.
+receive-side data path before any ROS 2 node or mapping code is introduced.
 
 ## Scope
 
@@ -15,6 +15,8 @@ This module currently provides:
   conservative angle-wrap fallback.
 - Explicit scan end reasons and completeness metadata.
 - Bounded-memory safeguards for malformed or missing revolution boundaries.
+- ROS 2-ready `sensor_msgs/LaserScan` geometry (uniform angular grid, `inf`
+  for no return) without importing ROS.
 
 It intentionally does **not** yet provide:
 
@@ -23,7 +25,8 @@ It intentionally does **not** yet provide:
 - Timestamped scan logs, replay, or raw capture files.
 - Serial-port integration.
 - A command-line interface.
-- ROS 2 nodes, `sensor_msgs/LaserScan`, TF, SLAM, or navigation.
+- A ROS 2 node, launch files, TF integration, SLAM, or navigation. This module
+  only provides the ROS-free `LaserScan` geometry that such a node will publish.
 - Hardware validation of any kind.
 
 ## Protocol basis
@@ -150,6 +153,111 @@ Zero-distance samples (no return) and out-of-range samples are retained with
 their raw values. No filtering is applied in this module. This keeps the wire
 decoder honest and lets a later validation layer make explicit decisions.
 
+## ROS 2 integration
+
+The core never imports ROS. `to_laser_scan_frame()` performs the ROS-specific
+geometry and returns a plain `LaserScanFrame`, so it can be tested without
+`rclpy` and reused by a node, a recorder, or an offline tool.
+
+```python
+from oreva_lidar import to_laser_scan_frame
+
+frame = to_laser_scan_frame(
+    scan,
+    range_min_m=0.15,  # confirm against the X2 datasheet
+    range_max_m=8.0,   # confirm against the X2 datasheet
+    bin_count=720,     # 0.5-degree grid
+    frame_id="laser_link",
+)
+```
+
+Range limits are required arguments rather than hard-coded constants. The
+decoder intentionally retains every raw sample, so the caller must choose the
+limits that match the datasheet and the rover's safety envelope.
+
+### Field mapping
+
+| `sensor_msgs/LaserScan` | Source |
+| --- | --- |
+| `header.stamp` | `scan.start_unix_ns` |
+| `header.frame_id` | `frame_id` (default `laser_link`) |
+| `angle_min` / `angle_max` / `angle_increment` | uniform grid starting at 0 |
+| `time_increment` | `0.0` (the X2 has no per-ray timestamp) |
+| `scan_time` | `scan.duration_s` from the monotonic clock |
+| `range_min` / `range_max` | caller configuration, echoed in the frame |
+| `ranges` | one entry per bin; `inf` means no return |
+| `intensities` | empty (the X2 has no intensity channel) |
+
+### Angular grid and range semantics
+
+`angle_min` is 0 and angles advance toward `2 * pi`. The X2's zero reference is
+arbitrary with respect to the rover, so the mounting rotation belongs in URDF
+and TF, not in the conversion. In `laser_link`, angle 0 therefore means +x and
+90 degrees means +y, per REP 103.
+
+`LaserScan` requires a constant `angle_increment`, while X2 sample spacing is
+not perfectly uniform. Points are assigned to half-open bins
+`[i * increment, (i + 1) * increment)`; a point exactly on a boundary goes to
+the higher bin, and angles wrap exactly at 360 degrees. The default 720 bins
+give a 0.5-degree grid. Increasing `bin_count` preserves more angular detail at
+the cost of memory; decreasing it resamples more aggressively.
+
+When several points land in one bin, the **minimum** valid range is kept. This
+biases the scan toward nearby obstacles, which is the safer choice for
+navigation, and it is explicit rather than an undocumented average. Empty bins,
+zero-distance samples, and samples outside `[range_min_m, range_max_m]` become
+`inf` ("no return"), not `NaN` ("invalid measurement"). `LaserScanFrame`
+reports `points_used`, `points_no_return`, and `points_out_of_range` so callers
+can audit what happened.
+
+### Publisher sketch
+
+A node can publish the frame directly. The snippet below is illustrative and
+has **not** been executed in this environment because `rclpy` is not installed:
+
+```python
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
+
+from oreva_lidar import to_laser_scan_frame
+
+
+class LaserScanPublisher(Node):
+    def __init__(self) -> None:
+        super().__init__("oreva_lidar")
+        self._publisher = self.create_publisher(
+            LaserScan, "scan", qos_profile_sensor_data
+        )
+
+    def publish_scan(self, scan) -> None:
+        frame = to_laser_scan_frame(
+            scan,
+            range_min_m=0.15,  # confirm against the X2 datasheet
+            range_max_m=8.0,   # confirm against the X2 datasheet
+        )
+        message = LaserScan()
+        message.header.stamp.sec, message.header.stamp.nanosec = divmod(
+            frame.stamp_unix_ns, 1_000_000_000
+        )
+        message.header.frame_id = frame.frame_id
+        message.angle_min = frame.angle_min_rad
+        message.angle_max = frame.angle_max_rad
+        message.angle_increment = frame.angle_increment_rad
+        message.time_increment = frame.time_increment_s
+        message.scan_time = frame.scan_time_s
+        message.range_min = frame.range_min_m
+        message.range_max = frame.range_max_m
+        message.ranges = list(frame.ranges_m)
+        self._publisher.publish(message)
+```
+
+`rclpy` must be imported by the node, never by `oreva_lidar`. Use
+`sensor_data` QoS for the scan topic, publish on `/scan`, and keep the node's
+`header.stamp` policy in one place: this conversion uses the scan's start time,
+which is the acquisition epoch available without sensor timestamps.
+
 ## Testing
 
 Tests use only the Python standard library and synthetic packets. The manual's
@@ -175,7 +283,8 @@ PYTHONPATH=src python3 -m unittest discover -s tests -t . -v
 The test suite covers normal decoding, chunk-boundary splits, garbage and
 power-on messages, false headers, checksum and framing failures, angle wrap,
 start-packet boundaries, incomplete scans, safety limits, clock regression,
-and configuration errors.
+configuration errors, and the `LaserScan` grid conversion including bin
+boundaries, wrap-around, no-return handling, and range limits.
 
 ## Assumptions and limitations
 
@@ -189,8 +298,13 @@ and configuration errors.
 - Single-packet burst behaviour is bounded by the packet size: a scan can
   exceed `max_points_per_scan` by at most one packet when the configured limit
   is smaller than a packet.
-- Scan quality, distance filtering, health, logging, and ROS 2 integration are
+- Scan quality, distance filtering, health, logging, and the ROS 2 node are
   deliberately deferred.
+- The `LaserScan` conversion resamples onto a uniform grid; it is not a
+  lossless representation of every X2 sample. The default 0.5-degree grid and
+  minimum-range aggregation are documented choices, not sensor specifications.
+- The ROS 2 publisher sketch in this README has not been executed here; no
+  ROS 2 installation is available in this environment.
 - Health and fault reporting, when added, must not be described as a verified
   physical emergency stop.
 
@@ -199,6 +313,6 @@ and configuration errors.
 1. Add scan validation and health monitoring.
 2. Add timestamped JSONL scan recording and replay.
 3. Add a thin serial source for live X2 data.
-4. Publish validated scans as `sensor_msgs/LaserScan` in a ROS 2 node on the
-   `laser_link` frame, with diagnostics.
+4. Wrap `to_laser_scan_frame()` in a ROS 2 node that publishes validated scans
+   as `sensor_msgs/LaserScan` on `laser_link`, with diagnostics.
 5. Validate the protocol assumptions against a real X2 capture.
