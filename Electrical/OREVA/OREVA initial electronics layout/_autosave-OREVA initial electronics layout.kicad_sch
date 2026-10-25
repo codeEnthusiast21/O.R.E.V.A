@@ -1,0 +1,156 @@
+(kicad_sch
+	(version 20260306)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "3cc1e69b-70e2-46f4-bfad-47b6351700fe")
+	(paper "A3")
+	(title_block
+		(title "OREVA")
+		(date "2026-10-18")
+	)
+	(lib_symbols)
+	(sheet
+		(at 214.63 19.05)
+		(size 172.72 95.25)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0)
+		)
+		(uuid "5f7669a2-7285-40fc-83d2-728fa5babcce")
+		(property "Sheetname" "MCU Sheet"
+			(at 214.63 18.3384 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "MCU.kicad_sch"
+			(at 214.63 114.8846 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "OREVA initial electronics layout"
+				(path "/3cc1e69b-70e2-46f4-bfad-47b6351700fe"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 27.94 127)
+		(size 248.92 99.06)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0)
+		)
+		(uuid "a1d8cf29-89f0-44b3-912c-ecab0317a993")
+		(property "Sheetname" "Sensors Sheet"
+			(at 27.94 126.2884 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "sensors.kicad_sch"
+			(at 27.94 226.6446 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "OREVA initial electronics layout"
+				(path "/3cc1e69b-70e2-46f4-bfad-47b6351700fe"
+					(page "4")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 15.24 19.05)
+		(size 177.8 92.71)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0)
+		)
+		(uuid "ba04eba6-a292-4b81-92e7-30b324708214")
+		(property "Sheetname" "Power"
+			(at 15.24 18.3384 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "Power.kicad_sch"
+			(at 15.24 112.3446 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "OREVA initial electronics layout"
+				(path "/3cc1e69b-70e2-46f4-bfad-47b6351700fe"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)
